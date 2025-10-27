@@ -1,0 +1,39 @@
+{
+  "title": "CityVisualizationState",
+  "version": "1.0",
+  "description": "Backend-to-frontend minimal contract without numeric style constants.",
+  "type": "object",
+  "required": [
+    "city_state",
+    "unslug_trust",
+    "fear_trust",
+    "flow_trust"
+  ],
+  "properties": {
+    "city_state": {
+      "enum": [
+        "dim",
+        "stable",
+        "thriving"
+      ]
+    },
+    "unslug_trust": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "fear_trust": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "flow_trust": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "notes": {
+      "type": "string"
+    }
+  }
+}

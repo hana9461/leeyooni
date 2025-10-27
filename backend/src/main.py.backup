@@ -1,0 +1,172 @@
+"""
+UNSLUG City Backend - FastAPI Application
+"""
+import os
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+import structlog
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+from src.api import auth, signals, subscription, payment
+from src.db.database import init_db
+from src.websocket.socket_manager import SocketManager
+from src.services.scheduler import SchedulerService
+from src.config import settings
+
+# Configure structured logging
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.processors.JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
+
+logger = structlog.get_logger(__name__)
+
+# Global socket manager
+socket_manager = SocketManager()
+scheduler_service = SchedulerService()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan manager"""
+    logger.info("Starting UNSLUG City Backend")
+    
+    # Initialize database
+    await init_db()
+    logger.info("Database initialized")
+    
+    # Start scheduler service
+    await scheduler_service.start()
+    logger.info("Scheduler service started")
+    
+    yield
+    
+    # Cleanup
+    await scheduler_service.stop()
+    logger.info("Scheduler service stopped")
+    logger.info("UNSLUG City Backend shutdown complete")
+
+
+def create_app() -> FastAPI:
+    """Create and configure FastAPI application"""
+    
+    app = FastAPI(
+        title="UNSLUG City API",
+        description="금융 신호 분석 서비스 API",
+        version="1.5.0",
+        docs_url="/docs" if os.getenv("DEBUG", "false").lower() == "true" else None,
+        redoc_url="/redoc" if os.getenv("DEBUG", "false").lower() == "true" else None,
+        lifespan=lifespan
+    )
+    
+    # CORS middleware
+    allowed_origins = settings.allowed_origins.split(",")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    # Trusted host middleware
+    if os.getenv("ENVIRONMENT") == "production":
+        trusted_hosts = os.getenv("TRUSTED_HOSTS", "*.your-domain.com").split(",")
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
+    
+    # Include routers
+    app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+    app.include_router(signals.router, prefix="/api/v1/signals", tags=["signals"])
+    app.include_router(subscription.router, prefix="/api/v1/subscription", tags=["subscription"])
+    app.include_router(payment.router, prefix="/api/v1/payment", tags=["payment"])
+    
+    # WebSocket endpoint
+    from src.websocket.router import router as websocket_router
+    app.include_router(websocket_router)
+    
+    @app.get("/")
+    async def root():
+        return {"message": "UNSLUG City API", "version": "1.5.0"}
+    
+    @app.get("/health")
+    async def health_check():
+        return {"status": "healthy", "service": "unslug-city-api"}
+    
+    @app.get("/test/signals")
+    async def test_signals():
+        """Test signals endpoint - no auth required"""
+        return {
+            "city_state": "thriving",
+            "signals": [
+                {
+                    "organism": "UNSLUG",
+                    "symbol": "AAPL",
+                    "signal": "BUY",
+                    "trust": 0.87,
+                    "explain": [
+                        {"name": "RSI", "value": 28, "contribution": "increases_trust"},
+                        {"name": "Volume Spike", "value": "180%", "contribution": "increases_trust"},
+                        {"name": "Support Level", "value": "$150", "contribution": "increases_trust"}
+                    ]
+                },
+                {
+                    "organism": "FearIndex",
+                    "symbol": "AAPL", 
+                    "signal": "NEUTRAL",
+                    "trust": 0.65,
+                    "explain": [
+                        {"name": "News Sentiment", "value": -0.2, "contribution": "decreases_trust"},
+                        {"name": "VIX Level", "value": 18.5, "contribution": "neutral"}
+                    ]
+                },
+                {
+                    "organism": "MarketFlow",
+                    "symbol": "AAPL",
+                    "signal": "BUY", 
+                    "trust": 0.92,
+                    "explain": [
+                        {"name": "Liquidity Ratio", "value": 2.3, "contribution": "increases_trust"},
+                        {"name": "Flow Direction", "value": "Inflow", "contribution": "increases_trust"}
+                    ]
+                }
+            ]
+        }
+    
+    @app.get("/test/fear-index/{symbol}")
+    async def test_fear_index(symbol: str):
+        """Test Fear Index endpoint - no auth required"""
+        from src.core.fear_index import fear_calculator
+        return fear_calculator.calculate_fear_index(symbol.upper())
+    
+    return app
+
+
+app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=os.getenv("DEBUG", "false").lower() == "true",
+        log_level="info"
+    )

@@ -1,0 +1,18 @@
+You are Claude implementing UNSLUG — City of Signals v1.5.
+Constraints:
+- Finance layer only; do not aggregate City-wide trust (future).
+- Do not invent weights or thresholds. If required, emit REQUIRED_DECISION.
+- Output must conform to contracts/trust_schema.json and city_visual_contract.json.
+- Provide explain entries for factor contributions.
+- Surface all missing inputs as REQUIRED_DECISION.md entries.
+
+Tasks:
+1) Build organism modules (unslug, fear, flow) that compute a normalized trust in [0,1].
+2) Normalize each factor to [0,1] using monotonic transforms (percentiles/min-max on a declared window).
+3) Aggregate with a documented monotone method (geometric/harmonic/min-mean hybrid or calibrated logistic).
+4) Produce a CLI demo that ingests data for a small symbol set and emits last_signal.json per organism.
+5) Export calibration reports and a short plan for dynamic pricing (no numbers).
+Deliverables:
+- Code in src/ with adapters/core/contracts/out.
+- No hardcoded provider API in core logic.
+- No magic numbers. Ask for decisions via REQUIRED_DECISION.md.

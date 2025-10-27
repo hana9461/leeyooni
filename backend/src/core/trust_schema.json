@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TrustOutput",
+  "type": "object",
+  "required": [
+    "organism",
+    "symbol",
+    "ts",
+    "signal",
+    "trust",
+    "explain"
+  ],
+  "properties": {
+    "organism": {
+      "enum": [
+        "UNSLUG",
+        "FearIndex",
+        "MarketFlow"
+      ]
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "ts": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signal": {
+      "enum": [
+        "BUY",
+        "NEUTRAL",
+        "RISK"
+      ]
+    },
+    "trust": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "explain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "contribution"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string",
+              "null"
+            ]
+          },
+          "contribution": {
+            "enum": [
+              "increases_trust",
+              "decreases_trust",
+              "neutral"
+            ]
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "data_window": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
