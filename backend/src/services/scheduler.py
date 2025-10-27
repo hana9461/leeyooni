@@ -1,30 +1,36 @@
 """
 스케줄러 서비스 - 주기적 신호 계산 및 브로드캐스트
+P3 업데이트: 일일 신호 계산 + UNSLUG + Fear&Greed
 """
 import asyncio
 from typing import List
 import structlog
+import time
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
+import os
 
 from src.core.organisms import organism_manager
 from src.websocket.socket_manager import socket_manager
+from src.adapters.data.yahoo import fetch_symbol_daily
 from shared.schemas import OrganismType, InputSlice
 
 logger = structlog.get_logger(__name__)
 
 
 class SchedulerService:
-    """스케줄러 서비스"""
-    
+    """스케줄러 서비스 (P3 업데이트)"""
+
     def __init__(self):
         self.scheduler = AsyncIOScheduler()
         self.logger = logger.bind(service="scheduler")
         self.is_running = False
-        
-        # 모니터링할 종목 리스트 (실제로는 DB에서 가져와야 함)
-        self.watchlist_symbols = ["AAPL", "TSLA", "MSFT", "GOOGL", "NVDA"]
+
+        # P3 일일 워치리스트 (5개 심볼)
+        self.daily_symbols = ["SPY", "QQQ", "AAPL", "TSLA", "NVDA"]
+        self.daily_lookback = 30
     
     async def start(self):
         """스케줄러 시작"""
