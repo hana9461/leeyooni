@@ -1,0 +1,67 @@
+{
+  "timestamp": "2025-10-27T08:48:46.128730",
+  "test_name": "P2_full_pipeline",
+  "symbols_tested": [
+    "SPY",
+    "QQQ",
+    "AAPL"
+  ],
+  "passed": 3,
+  "failed": 0,
+  "total": 3,
+  "test_passed": true,
+  "results": {
+    "SPY": {
+      "UNSLUG": {
+        "signal": "NEUTRAL",
+        "trust": 0.5,
+        "factors": 1
+      },
+      "FearIndex": {
+        "signal": "NEUTRAL",
+        "trust": 0.6,
+        "factors": 1
+      },
+      "MarketFlow": {
+        "signal": "NEUTRAL",
+        "trust": 0.5,
+        "factors": 1
+      }
+    },
+    "QQQ": {
+      "UNSLUG": {
+        "signal": "NEUTRAL",
+        "trust": 0.5,
+        "factors": 1
+      },
+      "FearIndex": {
+        "signal": "NEUTRAL",
+        "trust": 0.6,
+        "factors": 1
+      },
+      "MarketFlow": {
+        "signal": "RISK",
+        "trust": 0.3,
+        "factors": 1
+      }
+    },
+    "AAPL": {
+      "UNSLUG": {
+        "signal": "NEUTRAL",
+        "trust": 0.5,
+        "factors": 1
+      },
+      "FearIndex": {
+        "signal": "NEUTRAL",
+        "trust": 0.6,
+        "factors": 1
+      },
+      "MarketFlow": {
+        "signal": "NEUTRAL",
+        "trust": 0.5,
+        "factors": 1
+      }
+    }
+  },
+  "errors": []
+}
