@@ -1,15 +1,19 @@
 """
 스케줄러 서비스 - 주기적 신호 계산 및 브로드캐스트
+Real data from Yahoo Finance adapter
 """
 import asyncio
 from typing import List
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
+import time
 
 from src.core.organisms import organism_manager
 from src.websocket.socket_manager import socket_manager
+from src.adapters.data.yahoo import fetch_symbol_daily
 from shared.schemas import OrganismType, InputSlice
 
 logger = structlog.get_logger(__name__)
@@ -22,45 +26,55 @@ class SchedulerService:
         self.scheduler = AsyncIOScheduler()
         self.logger = logger.bind(service="scheduler")
         self.is_running = False
-        
-        # 모니터링할 종목 리스트 (실제로는 DB에서 가져와야 함)
-        self.watchlist_symbols = ["AAPL", "TSLA", "MSFT", "GOOGL", "NVDA"]
+
+        # P2 Daily Symbols (사전 정의)
+        self.daily_symbols = ["SPY", "QQQ", "AAPL"]
+        self.daily_lookback = 20  # 20 day lookback for factor computation
     
     async def start(self):
         """스케줄러 시작"""
         if self.is_running:
             return
-        
+
         try:
-            # 5분마다 신호 계산 및 브로드캐스트
+            # P2: Daily signal calculation for SPY/QQQ/AAPL
+            # Run once on startup, then daily at 9:30 AM (market open)
             self.scheduler.add_job(
-                self._calculate_and_broadcast_signals,
-                IntervalTrigger(minutes=5),
-                id="signal_calculation",
+                self._calculate_daily_signals,
+                CronTrigger(hour=9, minute=30),  # 9:30 AM daily
+                id="daily_signal_calculation",
+                replace_existing=True,
+                timezone='US/Eastern'
+            )
+
+            # For development: also run immediately on startup
+            self.scheduler.add_job(
+                self._calculate_daily_signals_once,
+                id="startup_signal_calculation",
                 replace_existing=True
             )
-            
-            # 1분마다 도시 상태 업데이트
+
+            # 1분마다 도시 상태 업데이트 (기존)
             self.scheduler.add_job(
                 self._update_city_state,
                 IntervalTrigger(minutes=1),
                 id="city_state_update",
                 replace_existing=True
             )
-            
-            # 30초마다 연결 상태 체크
+
+            # 30초마다 연결 상태 체크 (기존)
             self.scheduler.add_job(
                 self._check_connections,
                 IntervalTrigger(seconds=30),
                 id="connection_check",
                 replace_existing=True
             )
-            
+
             self.scheduler.start()
             self.is_running = True
-            
-            self.logger.info("Scheduler service started")
-            
+
+            self.logger.info("Scheduler service started", symbols=self.daily_symbols)
+
         except Exception as e:
             self.logger.error(f"Failed to start scheduler: {e}")
             raise
@@ -78,41 +92,73 @@ class SchedulerService:
         except Exception as e:
             self.logger.error(f"Failed to stop scheduler: {e}")
     
-    async def _calculate_and_broadcast_signals(self):
-        """신호 계산 및 브로드캐스트"""
+    async def _calculate_daily_signals_once(self):
+        """
+        Run daily signal calculation once on startup
+        This is async-compatible wrapper
+        """
+        start_time = time.time()
+        await self._calculate_daily_signals()
+        elapsed = time.time() - start_time
+
+        self.logger.info("Startup signal calculation completed", elapsed_seconds=elapsed)
+
+    async def _calculate_daily_signals(self):
+        """
+        P2: Calculate daily signals for SPY/QQQ/AAPL using real Yahoo data
+        Compute all 3 organisms (UNSLUG, FearIndex, MarketFlow) for each symbol
+        """
         try:
-            self.logger.info("Starting signal calculation", 
-                           symbols_count=len(self.watchlist_symbols))
-            
-            for symbol in self.watchlist_symbols:
+            self.logger.info("Starting daily signal calculation",
+                           symbols=self.daily_symbols,
+                           lookback=self.daily_lookback)
+
+            start_time = time.time()
+
+            for symbol in self.daily_symbols:
                 try:
-                    # 모의 데이터 생성 (실제로는 데이터 소스에서 가져와야 함)
-                    mock_data = await self._get_mock_data(symbol)
-                    
-                    # 모든 organism에 대해 신호 계산
-                    organism_outputs = await organism_manager.compute_all_organisms(mock_data)
-                    
-                    # 각 신호를 브로드캐스트
+                    # Fetch real data from Yahoo
+                    self.logger.info(f"Fetching data for {symbol}")
+                    data = fetch_symbol_daily(symbol, lookback=self.daily_lookback)
+
+                    if not data:
+                        self.logger.warning(f"No data fetched for {symbol}")
+                        continue
+
+                    # Compute all organisms
+                    self.logger.info(f"Computing organisms for {symbol}")
+                    organism_outputs = await organism_manager.compute_all_organisms(data)
+
+                    # Broadcast signals via WebSocket
                     for organism_type, output in organism_outputs.items():
-                        await socket_manager.broadcast_signal(
-                            signal_data=output.dict(),
-                            symbol=symbol
-                        )
-                        
-                        self.logger.debug("Signal broadcasted", 
-                                        organism=organism_type.value,
-                                        symbol=symbol,
-                                        signal=output.signal.value,
-                                        trust=output.trust)
-                
+                        try:
+                            # Broadcast to connected clients
+                            await socket_manager.broadcast_signal(
+                                signal_data=output.dict(),
+                                symbol=symbol
+                            )
+
+                            self.logger.info("Signal broadcasted",
+                                          organism=organism_type.value,
+                                          symbol=symbol,
+                                          signal=output.signal.value,
+                                          trust=f"{output.trust:.3f}")
+
+                        except Exception as e:
+                            self.logger.warning(f"Failed to broadcast {organism_type.value} for {symbol}: {e}")
+                            continue
+
                 except Exception as e:
                     self.logger.error(f"Failed to process symbol {symbol}: {e}")
                     continue
-            
-            self.logger.info("Signal calculation completed")
-            
+
+            elapsed = time.time() - start_time
+            self.logger.info("Daily signal calculation completed",
+                           elapsed_seconds=f"{elapsed:.2f}",
+                           symbols_processed=len(self.daily_symbols))
+
         except Exception as e:
-            self.logger.error(f"Signal calculation failed: {e}")
+            self.logger.error(f"Daily signal calculation failed: {e}")
     
     async def _update_city_state(self):
         """도시 상태 업데이트"""
