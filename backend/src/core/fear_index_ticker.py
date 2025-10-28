@@ -19,7 +19,7 @@ import structlog
 import math
 
 from shared.schemas import InputSlice
-from src.core.factor_calculations import zscore, rolling_minmax
+from backend.src.core.factor_calculations import zscore, rolling_minmax
 
 logger = structlog.get_logger(__name__)
 

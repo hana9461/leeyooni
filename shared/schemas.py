@@ -38,7 +38,7 @@ class TrustContribution(str, Enum):
 class InputSlice(BaseModel):
     """입력 데이터 슬라이스"""
     symbol: str
-    interval: str = Field(..., regex="^(1d|1h|5m)$")
+    interval: str = Field(..., pattern="^(1d|1h|5m)$")
     ts: datetime
     open: float
     high: float
@@ -78,7 +78,7 @@ class CityVisualizationState(BaseModel):
 
 class UserCreate(BaseModel):
     """사용자 생성 요청"""
-    email: str = Field(..., regex=r'^[^@]+@[^@]+\.[^@]+$')
+    email: str = Field(..., pattern=r'^[^@]+@[^@]+\.[^@]+$')
     password: str = Field(..., min_length=8)
     name: str = Field(..., min_length=2)
 

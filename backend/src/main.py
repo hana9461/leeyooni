@@ -10,11 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from src.api import auth, signals, subscription, payment, unslug, fear_index
-from src.db.database import init_db
-from src.websocket.socket_manager import SocketManager
-from src.services.scheduler import SchedulerService
-from src.config import settings
+from backend.src.api import auth, signals, subscription, payment, unslug, fear_index
+from backend.src.db.database import init_db
+from backend.src.websocket.socket_manager import SocketManager
+from backend.src.services.scheduler import SchedulerService
+from backend.src.config import settings
 
 # Configure structured logging
 structlog.configure(
@@ -105,7 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(fear_index.router, prefix="/api/v1/fear-index", tags=["fear-index"])
     
     # WebSocket endpoint
-    from src.websocket.router import router as websocket_router
+    from backend.src.websocket.router import router as websocket_router
     app.include_router(websocket_router)
     
     @app.get("/")
@@ -159,7 +159,7 @@ def create_app() -> FastAPI:
     @app.get("/test/fear-index/{symbol}")
     async def test_fear_index(symbol: str):
         """Test Fear Index endpoint - no auth required"""
-        from src.core.fear_index import fear_calculator
+        from backend.src.core.fear_index import fear_calculator
         return fear_calculator.calculate_fear_index(symbol.upper())
     
     return app
