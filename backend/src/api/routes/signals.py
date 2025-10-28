@@ -9,8 +9,8 @@ from typing import List, Dict, Optional
 import structlog
 
 from shared.schemas import OrganismType, SignalType
-from src.core.organisms import organism_manager
-from src.adapters.data.yahoo import fetch_symbol_daily
+from backend.src.core.organisms import organism_manager
+from backend.src.adapters.data.yahoo import fetch_symbol_daily
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["signals"])

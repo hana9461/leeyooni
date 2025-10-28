@@ -12,8 +12,8 @@ from shared.schemas import (
     OrganismType, InputSlice, OrganismOutput,
     SignalType, ExplainEntry, TrustContribution
 )
-from src.core.unslug_scanner import unslug_scanner
-from src.core.fear_index_ticker import fear_index
+from backend.src.core.unslug_scanner import unslug_scanner
+from backend.src.core.fear_index_ticker import fear_index
 
 logger = structlog.get_logger(__name__)
 

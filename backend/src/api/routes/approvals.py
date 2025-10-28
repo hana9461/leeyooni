@@ -1,6 +1,7 @@
 """
 Signal Approval Routes - Team approval workflow
 POST /api/v1/signals/{symbol}/approve
+P3.3: WebSocket approval notifications
 """
 from fastapi import APIRouter, HTTPException, Query, Body
 from datetime import datetime
@@ -9,6 +10,14 @@ import structlog
 
 router = APIRouter(prefix="/api/v1", tags=["approvals"])
 logger = structlog.get_logger(__name__)
+
+# WebSocket manager for approval notifications
+socket_manager = None
+
+def set_socket_manager(sm):
+    """Set socket manager instance for WebSocket broadcasts"""
+    global socket_manager
+    socket_manager = sm
 
 
 @router.post("/signals/{symbol}/approve")
@@ -71,6 +80,28 @@ async def approve_signal(
             user_id=user_id,
             note=note
         )
+
+        # P3.3: Broadcast approval notification via WebSocket
+        if socket_manager:
+            approval_notification = {
+                "type": "approval_notification",
+                "data": {
+                    "symbol": symbol.upper(),
+                    "approved_status": status,
+                    "approved_by": user_id or "system",
+                    "approved_at": datetime.utcnow().isoformat(),
+                    "note": note or ""
+                },
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            # Broadcast to all connected clients
+            import asyncio
+            try:
+                asyncio.create_task(socket_manager.broadcast_signal(approval_notification["data"], symbol=symbol.upper()))
+                logger.info("Approval notification broadcasted", symbol=symbol)
+            except Exception as e:
+                logger.warning(f"Failed to broadcast approval notification: {e}")
 
         return {
             "symbol": symbol.upper(),

@@ -11,9 +11,9 @@ from sqlalchemy import select
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 
-from src.db.database import get_db
-from src.db.models import User
-from src.config import settings
+from backend.src.db.database import get_db
+from backend.src.db.models import User
+from backend.src.config import settings
 from shared.schemas import UserCreate, UserLogin, UserResponse, TokenResponse
 
 logger = structlog.get_logger(__name__)

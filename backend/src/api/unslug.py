@@ -7,9 +7,9 @@ from typing import List, Optional
 import structlog
 from datetime import datetime, timedelta
 
-from src.core.unslug import unslug_calculator, UnslugConfig
-from src.api.auth import get_current_user
-from src.db.models import User
+from backend.src.core.unslug import unslug_calculator, UnslugConfig
+from backend.src.api.auth import get_current_user
+from backend.src.db.models import User
 
 logger = structlog.get_logger(__name__)
 

@@ -6,9 +6,9 @@ from typing import Optional
 import structlog
 from datetime import datetime, timedelta, date
 
-from src.core.fear_index import fear_calculator
-from src.api.auth import get_current_user
-from src.db.models import User
+from backend.src.core.fear_index import fear_calculator
+from backend.src.api.auth import get_current_user
+from backend.src.db.models import User
 
 logger = structlog.get_logger(__name__)
 

@@ -12,9 +12,12 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from backend.src.api import auth, signals, subscription, payment, unslug, fear_index, approvals
 from backend.src.db.database import init_db
-from backend.src.websocket.socket_manager import SocketManager
+from backend.src.websocket.socket_manager import SocketManager, socket_manager
 from backend.src.services.scheduler import SchedulerService
 from backend.src.config import settings
+
+# P3.3: Set socket manager for approval notifications
+approvals.set_socket_manager(socket_manager)
 
 # Configure structured logging
 structlog.configure(

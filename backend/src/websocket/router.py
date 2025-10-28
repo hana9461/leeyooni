@@ -8,9 +8,9 @@ import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from src.websocket.socket_manager import socket_manager
-from src.api.auth import get_current_user
-from src.db.models import User
+from backend.src.websocket.socket_manager import socket_manager
+from backend.src.api.auth import get_current_user
+from backend.src.db.models import User
 
 logger = structlog.get_logger(__name__)
 
@@ -25,7 +25,7 @@ async def get_current_user_from_token(credentials: HTTPAuthorizationCredentials 
     
     try:
         from jose import jwt
-        from src.config import settings
+        from backend.src.config import settings
         
         payload = jwt.decode(
             credentials.credentials, 
@@ -54,7 +54,7 @@ async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
         if token:
             try:
                 from jose import jwt
-                from src.config import settings
+                from backend.src.config import settings
                 
                 payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
                 user_id = payload.get("sub")

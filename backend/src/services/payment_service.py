@@ -7,7 +7,7 @@ import structlog
 import stripe
 from datetime import datetime, timedelta
 
-from src.config import settings
+from backend.src.config import settings
 from shared.schemas import PaymentMethod
 
 logger = structlog.get_logger(__name__)
