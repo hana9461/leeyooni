@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from backend.src.api import auth, signals, subscription, payment, unslug, fear_index
+from backend.src.api import auth, signals, subscription, payment, unslug, fear_index, approvals
 from backend.src.db.database import init_db
 from backend.src.websocket.socket_manager import SocketManager
 from backend.src.services.scheduler import SchedulerService
@@ -98,7 +98,8 @@ def create_app() -> FastAPI:
     
     # Include routers
     app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
-    app.include_router(signals.router, prefix="/api/v1/signals", tags=["signals"])
+    app.include_router(signals.router, prefix="/api/v1", tags=["signals"])
+    app.include_router(approvals.router, prefix="/api/v1", tags=["approvals"])
     app.include_router(subscription.router, prefix="/api/v1/subscription", tags=["subscription"])
     app.include_router(payment.router, prefix="/api/v1/payment", tags=["payment"])
     app.include_router(unslug.router, prefix="/api/v1/unslug", tags=["unslug"])
