@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from datetime import datetime, timedelta
 
-from src.db.database import get_db
-from src.db.models import User, Signal, Watchlist
-from src.api.auth import get_current_user
-from src.core.organisms import organism_manager
-from src.core.fear_index import fear_calculator
+from backend.src.db.database import get_db
+from backend.src.db.models import User, Signal, Watchlist
+from backend.src.api.auth import get_current_user
+from backend.src.core.organisms import organism_manager
+from backend.src.core.fear_index import fear_calculator
 from shared.schemas import (
     OrganismType, OrganismOutput, CityVisualizationState, 
     CityState, InputSlice

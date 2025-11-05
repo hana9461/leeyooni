@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
 
-from src.db.database import get_db
-from src.db.models import User, Payment, Subscription, SubscriptionPlan, PaymentMethod
-from src.api.auth import get_current_user
-from src.services.payment_service import PaymentService
+from backend.src.db.database import get_db
+from backend.src.db.models import User, Payment, Subscription, SubscriptionPlan, PaymentMethod
+from backend.src.api.auth import get_current_user
+from backend.src.services.payment_service import PaymentService
 
 logger = structlog.get_logger(__name__)
 

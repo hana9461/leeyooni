@@ -11,7 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
-from src.db.database import Base
+from backend.src.db.database import Base
 from shared.schemas import OrganismType, SignalType, SubscriptionPlan, PaymentMethod
 
 
@@ -75,18 +75,35 @@ class Payment(Base):
 
 
 class Signal(Base):
-    """신호 모델"""
+    """신호 모델 (P3.1: UNSLUG + Fear&Greed 신호 저장)"""
     __tablename__ = "signals"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     organism = Column(Enum(OrganismType), nullable=False)
     symbol = Column(String(20), nullable=False, index=True)
+    ts = Column(DateTime(timezone=True), nullable=False, index=True)
+
+    # P3 신호 점수
+    unslug_score = Column(Float, nullable=True)  # [0,1]
+    fear_score = Column(Float, nullable=True)    # [0,1]
+    combined_trust = Column(Float, nullable=True)  # [0,1]
+
+    # 신호 상태
     signal = Column(Enum(SignalType), nullable=False)
     trust = Column(Float, nullable=False)
+    status = Column(String(50), default="PENDING_REVIEW")  # PENDING_REVIEW, APPROVED_BUY, APPROVED_RISK, APPROVED_NEUTRAL
+
+    # 설명 & 메타
     explain = Column(JSON, nullable=True)  # ExplainEntry 리스트
-    signal_meta = Column(JSON, nullable=True)
+    recommendation = Column(JSON, nullable=True)  # {suggested: BUY|RISK|NEUTRAL, logic: str}
+    meta = Column(JSON, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    approvals = relationship("SignalApproval", back_populates="signal")
+
     # Indexes for efficient querying
     __table_args__ = (
         {"extend_existing": True},
@@ -138,12 +155,35 @@ class ChatSession(Base):
 class ChatMessage(Base):
     """채팅 메시지 모델"""
     __tablename__ = "chat_messages"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=False)
     role = Column(String(20), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
+
     # Relationships
     session = relationship("ChatSession")
+
+
+class SignalApproval(Base):
+    """신호 승인 모델 (P3.1: 팀원의 신호 승인 기록)"""
+    __tablename__ = "signal_approvals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    signal_id = Column(Integer, ForeignKey("signals.id"), nullable=False, index=True)
+    symbol = Column(String(20), nullable=False, index=True)
+
+    # 승인자 정보
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # null이면 system approval
+    approved_status = Column(String(50), nullable=False)  # BUY, RISK, NEUTRAL
+
+    # 승인 메모
+    note = Column(Text, nullable=True)
+
+    # 타임스탬프
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    signal = relationship("Signal", back_populates="approvals")
+    user = relationship("User")

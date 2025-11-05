@@ -1,16 +1,19 @@
 """
 Organism 로직 통합 - UNSLUG, FearIndex, MarketFlow
-기존 코드를 기반으로 한 통합 인터페이스
+P3: UNSLUG Scanner + Fear&Greed Index 통합
 """
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import structlog
+import numpy as np
 
 from shared.schemas import (
-    OrganismType, InputSlice, OrganismOutput, 
+    OrganismType, InputSlice, OrganismOutput,
     SignalType, ExplainEntry, TrustContribution
 )
+from backend.src.core.unslug_scanner import unslug_scanner
+from backend.src.core.fear_index_ticker import fear_index
 
 logger = structlog.get_logger(__name__)
 
@@ -64,60 +67,74 @@ class BaseOrganism:
             )
     
     async def _compute_unslug(self, series: List[InputSlice]) -> OrganismOutput:
-        """UNSLUG organism 계산"""
-        # TODO: 기존 UNSLUG 로직 통합
-        # 현재는 기본 구현
-        
+        """
+        UNSLUG organism 계산 (P3: UnslugScanner 통합)
+
+        Logic:
+        - UnslugScanner로 UNSLUG Score 계산 (0-1)
+        - trust = unslug_score (이미 0-1 범위)
+        - signal은 아직 PENDING_REVIEW (팀 승인 필요)
+        """
         latest = series[-1]
         trust_factors = []
-        
-        # 기본 trust 계산 로직
-        if len(series) >= 20:  # 충분한 데이터가 있는 경우
-            # 단순한 RSI 기반 계산 예시
-            recent_closes = [s.close for s in series[-14:]]
-            price_change = (recent_closes[-1] - recent_closes[0]) / recent_closes[0]
-            
-            if price_change < -0.05:  # 5% 이상 하락
-                signal = SignalType.BUY
-                trust = 0.7
-                trust_factors.append(
-                    ExplainEntry(
-                        name="price_drop",
-                        value=f"{price_change:.2%}",
-                        contribution=TrustContribution.INCREASES_TRUST
-                    )
-                )
-            elif price_change > 0.05:  # 5% 이상 상승
-                signal = SignalType.RISK
-                trust = 0.3
-                trust_factors.append(
-                    ExplainEntry(
-                        name="price_rise",
-                        value=f"{price_change:.2%}",
-                        contribution=TrustContribution.DECREASES_TRUST
-                    )
-                )
-            else:
-                signal = SignalType.NEUTRAL
-                trust = 0.5
-                trust_factors.append(
-                    ExplainEntry(
-                        name="stable_price",
-                        value=f"{price_change:.2%}",
-                        contribution=TrustContribution.NEUTRAL
-                    )
-                )
-        else:
+
+        try:
+            # UNSLUG Scanner 실행
+            result = unslug_scanner.scan(series)
+
+            # Score 추출
+            unslug_score = result.get('unslug_score', 0.5)
+            band = result.get('band', 'N/A')
+            signal_strength = result.get('signal_strength', 0.5)
+
+            # Trust = UNSLUG Score (0-1 범위)
+            trust = float(np.clip(unslug_score, 0, 1))
+
+            # Signal은 PENDING_REVIEW (팀이 승인할 때까지)
             signal = SignalType.NEUTRAL
-            trust = 0.0
-            trust_factors.append(
+
+            # Explain 구성
+            trust_factors = [
                 ExplainEntry(
-                    name="insufficient_data",
-                    value=f"{len(series)} periods",
+                    name="unslug_score",
+                    value=f"{unslug_score:.3f}",
+                    contribution=TrustContribution.INCREASES_TRUST if unslug_score > 0.5 else TrustContribution.DECREASES_TRUST
+                ),
+                ExplainEntry(
+                    name="band",
+                    value=band,
+                    contribution=TrustContribution.NEUTRAL
+                ),
+                ExplainEntry(
+                    name="low_price",
+                    value=f"${result.get('low_val', 0):.2f}" if result.get('low_val') else "N/A",
+                    contribution=TrustContribution.NEUTRAL
+                ),
+                ExplainEntry(
+                    name="current_price",
+                    value=f"${result.get('current_price', 0):.2f}" if result.get('current_price') else "N/A",
+                    contribution=TrustContribution.NEUTRAL
+                ),
+            ]
+
+            self.logger.info(
+                f"UNSLUG computed for {latest.symbol}",
+                trust=trust,
+                band=band
+            )
+
+        except Exception as e:
+            self.logger.error(f"UNSLUG computation failed: {e}")
+            trust = 0.5
+            signal = SignalType.NEUTRAL
+            trust_factors = [
+                ExplainEntry(
+                    name="error",
+                    value=str(e),
                     contribution=TrustContribution.DECREASES_TRUST
                 )
-            )
-        
+            ]
+
         return OrganismOutput(
             organism=OrganismType.UNSLUG,
             symbol=latest.symbol,
@@ -128,49 +145,81 @@ class BaseOrganism:
         )
     
     async def _compute_fear_index(self, series: List[InputSlice]) -> OrganismOutput:
-        """FearIndex organism 계산"""
-        # TODO: 기존 FearIndex 로직 통합
-        
+        """
+        FearIndex organism 계산 (P3: FearIndexTicker 통합)
+
+        Logic:
+        - FearIndexTicker로 Fear&Greed Score 계산 (0-100)
+        - trust = fear_score / 100 (0-1 범위로 정규화)
+        - signal은 PENDING_REVIEW (팀 승인 필요)
+        """
         latest = series[-1]
         trust_factors = []
-        
-        # 기본 변동성 기반 계산
-        if len(series) >= 20:
-            prices = [s.close for s in series[-20:]]
-            returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices))]
-            volatility = (sum(r**2 for r in returns) / len(returns))**0.5
-            
-            if volatility > 0.03:  # 3% 이상 변동성
-                signal = SignalType.RISK
-                trust = 0.8
-                trust_factors.append(
-                    ExplainEntry(
-                        name="high_volatility",
-                        value=f"{volatility:.2%}",
-                        contribution=TrustContribution.INCREASES_TRUST
-                    )
-                )
-            else:
-                signal = SignalType.NEUTRAL
-                trust = 0.6
-                trust_factors.append(
-                    ExplainEntry(
-                        name="low_volatility",
-                        value=f"{volatility:.2%}",
-                        contribution=TrustContribution.NEUTRAL
-                    )
-                )
-        else:
+
+        try:
+            # Fear Index 계산
+            result = fear_index.calculate(series)
+
+            # Score 추출
+            fear_score = result.get('fear_score', 50.0)  # 0-100
+            components = result.get('components', {})
+            label = result.get('label', 'Neutral')
+
+            # Trust = fear_score / 100 (0-1 범위)
+            trust = float(np.clip(fear_score / 100.0, 0, 1))
+
+            # Signal은 PENDING_REVIEW (팀이 승인할 때까지)
             signal = SignalType.NEUTRAL
-            trust = 0.0
-            trust_factors.append(
+
+            # Explain 구성 (상위 3개 컴포넌트)
+            top_components = sorted(
+                [(k, v) for k, v in components.items() if v is not None],
+                key=lambda x: abs(50 - x[1]),
+                reverse=True
+            )[:3]
+
+            trust_factors = [
                 ExplainEntry(
-                    name="insufficient_data",
-                    value=f"{len(series)} periods",
+                    name="fear_greed_score",
+                    value=f"{fear_score:.1f}",
+                    contribution=TrustContribution.NEUTRAL
+                ),
+                ExplainEntry(
+                    name="label",
+                    value=label,
+                    contribution=TrustContribution.NEUTRAL
+                ),
+            ]
+
+            # 상위 컴포넌트 추가
+            for comp_name, comp_val in top_components:
+                contrib = TrustContribution.INCREASES_TRUST if comp_val > 50 else TrustContribution.DECREASES_TRUST
+                trust_factors.append(
+                    ExplainEntry(
+                        name=comp_name,
+                        value=f"{comp_val:.1f}",
+                        contribution=contrib
+                    )
+                )
+
+            self.logger.info(
+                f"FearIndex computed for {latest.symbol}",
+                fear_score=fear_score,
+                label=label
+            )
+
+        except Exception as e:
+            self.logger.error(f"FearIndex computation failed: {e}")
+            trust = 0.5
+            signal = SignalType.NEUTRAL
+            trust_factors = [
+                ExplainEntry(
+                    name="error",
+                    value=str(e),
                     contribution=TrustContribution.DECREASES_TRUST
                 )
-            )
-        
+            ]
+
         return OrganismOutput(
             organism=OrganismType.FEAR_INDEX,
             symbol=latest.symbol,
