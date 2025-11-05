@@ -44,3 +44,6 @@ pytest-asyncio==0.21.1
 black==23.11.0
 isort==5.12.0
 mypy==1.7.1
+
+# unslug-city-business integration
+unslug-city-business @ git+https://github.com/hana9461/unslug-city-business@main
